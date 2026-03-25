@@ -1,13 +1,15 @@
-package main	
+package main
 
+import "github.com/gofiber/fiber/v3"
 
-type Lead struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Email string `json:"email"`
-	Phone string `json:"phone"`
-	Source string `json:"source"`
-	Status string `json:"status"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`	
+func main() {
+	app := fiber.New()
+
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"message": "API rodando",
+		})
+	})
+
+	app.Listen(":3000")
 }
