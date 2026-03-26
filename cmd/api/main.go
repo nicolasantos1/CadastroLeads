@@ -1,15 +1,26 @@
 package main
 
-import "github.com/gofiber/fiber/v3"
+import (
+	"log"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/nicolasantos1/CadastroLeads/internal/database"
+)
 
 func main() {
+	db, err := database.ConnectSQLite()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	app := fiber.New()
 
-	app.Get("/", func(c fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"message": "API rodando",
+			"data": "API rodando com banco",
 		})
 	})
 
-	app.Listen(":3000")
+	log.Fatal(app.Listen(":3000"))
 }
