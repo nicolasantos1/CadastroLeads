@@ -1,162 +1,306 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
-	"github.com/nicolasantos1/CadastroLeads/internal/dto"
 	"github.com/nicolasantos1/CadastroLeads/internal/model"
 )
 
+var ErrLeadNotFound = errors.New("lead not found")
+
 type LeadRepository interface {
-	Create(ctx context.Context, req dto.CreateLeadRequest) (*model.Lead, error)
-	GetByID(ctx context.Context, id int) (*model.Lead, error)
-	GetAll(ctx context.Context) ([]model.Lead, error)
-	Update(ctx context.Context, id int, req dto.UpdateLeadRequest) (*model.Lead, error)
-	UpdateStatus(ctx context.Context, id int, req dto.UpdateStatusRequest) (*model.Lead, error)
-	Delete(ctx context.Context, id int) error
-	GetByEmail(ctx context.Context, email string) (*model.Lead, error)
+	Create(lead *model.Lead) error
+	List(page, limit int, status, source string) ([]model.Lead, error)
+	GetByID(id int) (*model.Lead, error)
+	GetByEmail(email string) (*model.Lead, error)
+	Update(lead *model.Lead) error
+	UpdateStatus(id int, status string) error
+	Delete(id int) error
 }
 
-type leadRepository struct {
+type SQLiteLeadRepository struct {
 	db *sql.DB
 }
 
 func NewLeadRepository(db *sql.DB) LeadRepository {
-	return &leadRepository{db: db}
+	return &SQLiteLeadRepository{db: db}
 }
 
-func (r *leadRepository) Create(ctx context.Context, req dto.CreateLeadRequest) (*model.Lead, error) {
-	query := `INSERT INTO leads (name, email, phone, source, status) VALUES (?, ?, ?, ?, ?)`
+func (r *SQLiteLeadRepository) Create(lead *model.Lead) error {
+	now := time.Now().UTC()
 
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Email, req.Phone, req.Source, model.StatusNew)
+	if lead.Status == "" {
+		lead.Status = model.StatusNew
+	}
+
+	result, err := r.db.Exec(`
+		INSERT INTO leads (name, email, phone, source, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`,
+		lead.Name,
+		lead.Email,
+		lead.Phone,
+		lead.Source,
+		lead.Status,
+		now,
+		now,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create lead: %w", err)
+		return fmt.Errorf("erro ao criar lead: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last insert id: %w", err)
+		return fmt.Errorf("erro ao obter id do lead criado: %w", err)
 	}
 
-	return r.GetByID(ctx, int(id))
+	lead.ID = int(id)
+	lead.CreatedAt = now
+	lead.UpdatedAt = now
+
+	return nil
 }
 
-func (r *leadRepository) GetByID(ctx context.Context, id int) (*model.Lead, error) {
-	query := `SELECT id, name, email, phone, source, status, created_at, updated_at FROM leads WHERE id = ?`
-
-	var lead model.Lead
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&lead.ID, &lead.Name, &lead.Email, &lead.Phone,
-		&lead.Source, &lead.Status, &lead.CreatedAt, &lead.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("lead with id %d not found", id)
+func (r *SQLiteLeadRepository) List(page, limit int, status, source string) ([]model.Lead, error) {
+	if page <= 0 {
+		page = 1
 	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get lead: %w", err)
+	if limit <= 0 {
+		limit = 10
 	}
 
-	return &lead, nil
-}
+	offset := (page - 1) * limit
 
-func (r *leadRepository) GetAll(ctx context.Context) ([]model.Lead, error) {
-	query := `SELECT id, name, email, phone, source, status, created_at, updated_at FROM leads ORDER BY created_at DESC`
+	query := `
+		SELECT id, name, email, phone, source, status, created_at, updated_at
+		FROM leads
+	`
+	var conditions []string
+	var args []any
 
-	rows, err := r.db.QueryContext(ctx, query)
+	if status != "" {
+		conditions = append(conditions, "status = ?")
+		args = append(args, status)
+	}
+
+	if source != "" {
+		conditions = append(conditions, "source = ?")
+		args = append(args, source)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query += " ORDER BY id DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list leads: %w", err)
+		return nil, fmt.Errorf("erro ao listar leads: %w", err)
 	}
 	defer rows.Close()
 
 	var leads []model.Lead
+
 	for rows.Next() {
-		var lead model.Lead
-		err := rows.Scan(
-			&lead.ID, &lead.Name, &lead.Email, &lead.Phone,
-			&lead.Source, &lead.Status, &lead.CreatedAt, &lead.UpdatedAt,
-		)
+		lead, err := scanLead(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan lead: %w", err)
+			return nil, err
 		}
-		leads = append(leads, lead)
+		leads = append(leads, *lead)
 	}
 
-	return leads, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar leads: %w", err)
+	}
+
+	return leads, nil
 }
 
-func (r *leadRepository) Update(ctx context.Context, id int, req dto.UpdateLeadRequest) (*model.Lead, error) {
-	query := `UPDATE leads SET name = ?, phone = ?, source = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+func (r *SQLiteLeadRepository) GetByID(id int) (*model.Lead, error) {
+	row := r.db.QueryRow(`
+		SELECT id, name, email, phone, source, status, created_at, updated_at
+		FROM leads
+		WHERE id = ?
+	`, id)
 
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Phone, req.Source, req.Status, id)
+	lead, err := scanLead(row)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update lead: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrLeadNotFound
+		}
+		return nil, err
+	}
+
+	return lead, nil
+}
+
+func (r *SQLiteLeadRepository) GetByEmail(email string) (*model.Lead, error) {
+	row := r.db.QueryRow(`
+		SELECT id, name, email, phone, source, status, created_at, updated_at
+		FROM leads
+		WHERE email = ?
+	`, email)
+
+	lead, err := scanLead(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return lead, nil
+}
+
+func (r *SQLiteLeadRepository) Update(lead *model.Lead) error {
+	now := time.Now().UTC()
+
+	result, err := r.db.Exec(`
+		UPDATE leads
+		SET name = ?, phone = ?, source = ?, status = ?, updated_at = ?
+		WHERE id = ?
+	`,
+		lead.Name,
+		lead.Phone,
+		lead.Source,
+		lead.Status,
+		now,
+		lead.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("erro ao atualizar lead: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return nil, fmt.Errorf("lead with id %d not found", id)
+		return fmt.Errorf("erro ao verificar atualização do lead: %w", err)
 	}
 
-	return r.GetByID(ctx, id)
+	if rowsAffected == 0 {
+		return ErrLeadNotFound
+	}
+
+	lead.UpdatedAt = now
+	return nil
 }
 
-func (r *leadRepository) UpdateStatus(ctx context.Context, id int, req dto.UpdateStatusRequest) (*model.Lead, error) {
-	query := `UPDATE leads SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-
-	result, err := r.db.ExecContext(ctx, query, req.Status, id)
+func (r *SQLiteLeadRepository) UpdateStatus(id int, status string) error {
+	result, err := r.db.Exec(`
+		UPDATE leads
+		SET status = ?, updated_at = ?
+		WHERE id = ?
+	`, status, time.Now().UTC(), id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update lead status: %w", err)
+		return fmt.Errorf("erro ao atualizar status do lead: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("failed to check rows affected: %w", err)
+		return fmt.Errorf("erro ao verificar atualização de status: %w", err)
 	}
+
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf("lead with id %d not found", id)
-	}
-
-	return r.GetByID(ctx, id)
-}
-
-func (r *leadRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM leads WHERE id = ?`
-
-	result, err := r.db.ExecContext(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete lead: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return fmt.Errorf("lead with id %d not found", id)
+		return ErrLeadNotFound
 	}
 
 	return nil
 }
 
-func (r *leadRepository) GetByEmail(ctx context.Context, email string) (*model.Lead, error) {
-	query := `SELECT id, name, email, phone, source, status, created_at, updated_at FROM leads WHERE email = ?`
-
-	var lead model.Lead
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&lead.ID, &lead.Name, &lead.Email, &lead.Phone,
-		&lead.Source, &lead.Status, &lead.CreatedAt, &lead.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("lead with email %s not found", email)
-	}
+func (r *SQLiteLeadRepository) Delete(id int) error {
+	result, err := r.db.Exec(`DELETE FROM leads WHERE id = ?`, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get lead by email: %w", err)
+		return fmt.Errorf("erro ao deletar lead: %w", err)
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("erro ao verificar exclusão do lead: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrLeadNotFound
+	}
+
+	return nil
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanLead(s scanner) (*model.Lead, error) {
+	var lead model.Lead
+	var phone sql.NullString
+	var createdAtRaw any
+	var updatedAtRaw any
+
+	err := s.Scan(
+		&lead.ID,
+		&lead.Name,
+		&lead.Email,
+		&phone,
+		&lead.Source,
+		&lead.Status,
+		&createdAtRaw,
+		&updatedAtRaw,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if phone.Valid {
+		lead.Phone = phone.String
+	}
+
+	createdAt, err := parseSQLiteTime(createdAtRaw)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao converter created_at: %w", err)
+	}
+
+	updatedAt, err := parseSQLiteTime(updatedAtRaw)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao converter updated_at: %w", err)
+	}
+
+	lead.CreatedAt = createdAt
+	lead.UpdatedAt = updatedAt
 
 	return &lead, nil
+}
+
+func parseSQLiteTime(value any) (time.Time, error) {
+	switch v := value.(type) {
+	case time.Time:
+		return v, nil
+	case string:
+		return parseTimeString(v)
+	case []byte:
+		return parseTimeString(string(v))
+	default:
+		return time.Time{}, fmt.Errorf("tipo de data não suportado: %T", value)
+	}
+}
+
+func parseTimeString(value string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("formato de data inválido: %s", value)
 }
