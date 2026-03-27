@@ -49,6 +49,11 @@ func main() {
 		})
 	})
 
+	// rota temporária para testar o recover
+	app.Get("/panic-test", func(c fiber.Ctx) error {
+		panic("teste de panic")
+	})
+
 	leadHandler.RegisterRoutes(app)
 
 	log.Fatal(app.Listen(":" + port))
