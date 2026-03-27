@@ -250,7 +250,7 @@ GET /leads/1
 ```json
 {
   "error": {
-    "message": "lead not found"
+    "message": "lead não encontrado"
   }
 }
 ```

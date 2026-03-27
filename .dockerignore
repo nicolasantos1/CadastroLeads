@@ -1,0 +1,5 @@
+.git
+.gitignore
+leads.db
+tmp
+coverage.out

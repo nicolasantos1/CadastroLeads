@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    container_name: cadastroleads-api
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_PATH: /data/leads.db
+    volumes:
+      - leads_data:/data
+
+volumes:
+  leads_data:

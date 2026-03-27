@@ -2,22 +2,42 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	recoverer "github.com/gofiber/fiber/v3/middleware/recover"
+
 	"github.com/nicolasantos1/CadastroLeads/internal/database"
 	"github.com/nicolasantos1/CadastroLeads/internal/handler"
 	"github.com/nicolasantos1/CadastroLeads/internal/repository"
 	"github.com/nicolasantos1/CadastroLeads/internal/service"
 )
 
+func getEnv(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
 func main() {
-	db, err := database.ConnectSQLite()
+	port := getEnv("PORT", "3000")
+	dbPath := getEnv("DB_PATH", "leads.db")
+
+	db, err := database.ConnectSQLite(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	app := fiber.New()
+
+	app.Use(recoverer.New())
+	app.Use(logger.New(logger.Config{
+		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
+	}))
 
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo)
@@ -31,5 +51,5 @@ func main() {
 
 	leadHandler.RegisterRoutes(app)
 
-	log.Fatal(app.Listen(":3000"))
+	log.Fatal(app.Listen(":" + port))
 }

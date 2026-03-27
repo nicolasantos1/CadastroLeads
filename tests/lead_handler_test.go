@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
-
+	
 	"github.com/gofiber/fiber/v3"
 	_ "modernc.org/sqlite"
 
@@ -283,5 +284,111 @@ func TestDeleteLeadThenGetByID(t *testing.T) {
 	getResp := performRequest(t, app, http.MethodGet, "/leads/1", nil)
 	if getResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status esperado %d, recebido %d", http.StatusNotFound, getResp.StatusCode)
+	}
+}
+
+func TestCreateLeadInvalidEmail(t *testing.T) {
+	app := setupTestApp(t)
+
+	body := []byte(`{
+		"name":"Nicolas",
+		"email":"email_invalido",
+		"phone":"11999999999",
+		"source":"landing_page"
+	}`)
+
+	resp := performRequest(t, app, http.MethodPost, "/leads", body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusBadRequest, resp.StatusCode)
+	}
+}
+
+func TestGetLeadByIDNotFound(t *testing.T) {
+	app := setupTestApp(t)
+
+	resp := performRequest(t, app, http.MethodGet, "/leads/999", nil)
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusNotFound, resp.StatusCode)
+	}
+}
+
+func TestListLeadsWithSourceFilter(t *testing.T) {
+	app := setupTestApp(t)
+
+	lead1 := []byte(`{
+		"name":"Lead 1",
+		"email":"lead1@email.com",
+		"phone":"11111111111",
+		"source":"landing_page"
+	}`)
+	lead2 := []byte(`{
+		"name":"Lead 2",
+		"email":"lead2@email.com",
+		"phone":"22222222222",
+		"source":"google_ads"
+	}`)
+
+	resp1 := performRequest(t, app, http.MethodPost, "/leads", lead1)
+	if resp1.StatusCode != http.StatusCreated {
+		t.Fatalf("criação do lead1 falhou com status %d", resp1.StatusCode)
+	}
+
+	resp2 := performRequest(t, app, http.MethodPost, "/leads", lead2)
+	if resp2.StatusCode != http.StatusCreated {
+		t.Fatalf("criação do lead2 falhou com status %d", resp2.StatusCode)
+	}
+
+	resp := performRequest(t, app, http.MethodGet, "/leads?source=google_ads", nil)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusOK, resp.StatusCode)
+	}
+
+	payload := decodeJSONResponse(t, resp)
+
+	items, ok := payload["data"].([]any)
+	if !ok {
+		t.Fatalf("campo data não é uma lista válida")
+	}
+
+	if len(items) != 1 {
+		t.Fatalf("esperado 1 lead filtrado, recebido %d", len(items))
+	}
+}
+
+func TestListLeadsPagination(t *testing.T) {
+	app := setupTestApp(t)
+
+	for i := 1; i <= 3; i++ {
+		body := []byte(fmt.Sprintf(`{
+			"name":"Lead %d",
+			"email":"lead%d@email.com",
+			"phone":"11999999999",
+			"source":"landing_page"
+		}`, i, i))
+
+		resp := performRequest(t, app, http.MethodPost, "/leads", body)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("criação falhou com status %d", resp.StatusCode)
+		}
+	}
+
+	resp := performRequest(t, app, http.MethodGet, "/leads?page=1&limit=2", nil)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusOK, resp.StatusCode)
+	}
+
+	payload := decodeJSONResponse(t, resp)
+
+	items, ok := payload["data"].([]any)
+	if !ok {
+		t.Fatalf("campo data não é uma lista válida")
+	}
+
+	if len(items) != 2 {
+		t.Fatalf("esperado 2 itens na página, recebido %d", len(items))
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/nicolasantos1/CadastroLeads/internal/model"
 )
 
-var ErrLeadNotFound = errors.New("lead not found")
+var ErrLeadNotFound = errors.New("lead não encontrado")
 
 type LeadRepository interface {
 	Create(lead *model.Lead) error

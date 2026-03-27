@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -11,8 +14,20 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-func ConnectSQLite() (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "leads.db")
+func ConnectSQLite(dbPath string) (*sql.DB, error) {
+	dbPath = strings.TrimSpace(dbPath)
+	if dbPath == "" {
+		dbPath = "leads.db"
+	}
+
+	dir := filepath.Dir(dbPath)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("erro ao preparar diretório do banco: %w", err)
+		}
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir banco: %w", err)
 	}
