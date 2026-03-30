@@ -30,7 +30,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("erro ao fechar banco: %v", err)
+		}
+	}()
 
 	app := fiber.New()
 
@@ -51,9 +55,11 @@ func main() {
 
 	// rota temporária para testar o recover
 	app.Get("/panic-test", func(c fiber.Ctx) error {
-		panic("teste de panic")
+		return c.JSON(fiber.Map{
+			"error": "SDF",
+		})
 	})
-
+	
 	leadHandler.RegisterRoutes(app)
 
 	log.Fatal(app.Listen(":" + port))

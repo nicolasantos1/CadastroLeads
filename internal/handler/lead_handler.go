@@ -1,7 +1,12 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/nicolasantos1/CadastroLeads/internal/dto"
@@ -55,8 +60,8 @@ type listLeadsQuery struct {
 
 func (h *LeadHandler) CreateLead(c fiber.Ctx) error {
 	var req dto.CreateLeadRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse("corpo da requisição inválido"))
+	if err := decodeStrictJSON(c, &req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse(jsonErrorMessage(err)))
 	}
 
 	lead, err := h.service.Create(req)
@@ -101,6 +106,33 @@ func (h *LeadHandler) GetLeadByID(c fiber.Ctx) error {
 	})
 }
 
+
+func decodeStrictJSON[T any](c fiber.Ctx, dst *T) error {
+	dec := json.NewDecoder(bytes.NewReader(c.Body()))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		return errors.New("json inválido")
+	}
+
+	return nil
+}
+
+func jsonErrorMessage(err error) string {
+	msg := err.Error()
+
+	if field, found := strings.CutPrefix(msg, "json: unknown field "); found {
+		return fmt.Sprintf("campo não permitido: %s", field)
+	}
+
+	return "corpo da requisição inválido"
+}
+
 func (h *LeadHandler) UpdateLead(c fiber.Ctx) error {
 	var params leadIDParam
 	if err := c.Bind().URI(&params); err != nil {
@@ -108,8 +140,8 @@ func (h *LeadHandler) UpdateLead(c fiber.Ctx) error {
 	}
 
 	var req dto.UpdateLeadRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse("corpo da requisição inválido"))
+	if err := decodeStrictJSON(c, &req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse(jsonErrorMessage(err)))
 	}
 
 	lead, err := h.service.Update(params.ID, req)
@@ -129,8 +161,8 @@ func (h *LeadHandler) UpdateLeadStatus(c fiber.Ctx) error {
 	}
 
 	var req dto.UpdateStatusRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse("corpo da requisição inválido"))
+	if err := decodeStrictJSON(c, &req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(newErrorResponse(jsonErrorMessage(err)))
 	}
 
 	lead, err := h.service.UpdateStatus(params.ID, req)

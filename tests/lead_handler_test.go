@@ -358,6 +358,45 @@ func TestListLeadsWithSourceFilter(t *testing.T) {
 	}
 }
 
+func TestUpdateLeadRejectsUnknownField(t *testing.T) {
+	app := setupTestApp(t)
+
+	createBody := []byte(`{
+		"name":"Nicolas",
+		"email":"nicolas@email.com",
+		"phone":"11999999999",
+		"source":"landing_page"
+	}`)
+
+	createResp := performRequest(t, app, http.MethodPost, "/leads", createBody)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("criação falhou com status %d", createResp.StatusCode)
+	}
+
+	updateBody := []byte(`{
+		"name":"Nicolas Santos",
+		"phone":"11988887777",
+		"source":"google_ads",
+		"status":"contacted",
+		"teste":"valor-invalido"
+	}`)
+
+	resp := performRequest(t, app, http.MethodPut, "/leads/1", updateBody)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusBadRequest, resp.StatusCode)
+	}
+
+	payload := decodeJSONResponse(t, resp)
+	errorField, ok := payload["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("campo error ausente ou inválido")
+	}
+
+	if errorField["message"] != `campo não permitido: "teste"` {
+		t.Fatalf("mensagem inesperada: %v", errorField["message"])
+	}
+}
+
 func TestListLeadsPagination(t *testing.T) {
 	app := setupTestApp(t)
 

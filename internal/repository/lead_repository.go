@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -103,7 +104,11 @@ func (r *SQLiteLeadRepository) List(page, limit int, status, source string) ([]m
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar leads: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("erro ao fechar rows: %v", err)
+		}
+	}()
 
 	var leads []model.Lead
 
