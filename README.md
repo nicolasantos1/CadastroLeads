@@ -424,4 +424,3 @@ Atualmente o projeto possui testes cobrindo cenários como:
 ## Autor
 
 Nicolas Santos do Nascimento
-
