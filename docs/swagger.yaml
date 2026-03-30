@@ -1,0 +1,289 @@
+basePath: /
+definitions:
+  dto.CreateLeadRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      source:
+        type: string
+    type: object
+  dto.DeleteLeadResponse:
+    properties:
+      data:
+        $ref: '#/definitions/dto.MessageBody'
+    type: object
+  dto.ErrorBody:
+    properties:
+      message:
+        type: string
+    type: object
+  dto.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/dto.ErrorBody'
+    type: object
+  dto.LeadListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.Lead'
+        type: array
+    type: object
+  dto.LeadResponse:
+    properties:
+      data:
+        $ref: '#/definitions/model.Lead'
+    type: object
+  dto.MessageBody:
+    properties:
+      message:
+        type: string
+    type: object
+  dto.UpdateLeadRequest:
+    properties:
+      name:
+        type: string
+      phone:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.UpdateStatusRequest:
+    properties:
+      status:
+        type: string
+    type: object
+  model.Lead:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      phone:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact: {}
+  description: API REST para cadastro e gestão de leads.
+  title: CadastroLeads API
+  version: "1.0"
+paths:
+  /leads:
+    get:
+      description: Lista leads com paginação e filtros
+      parameters:
+      - description: Página
+        in: query
+        name: page
+        type: integer
+      - description: Limite por página
+        in: query
+        name: limit
+        type: integer
+      - description: Filtro por status
+        in: query
+        name: status
+        type: string
+      - description: Filtro por source
+        in: query
+        name: source
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LeadListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Lista leads
+      tags:
+      - leads
+    post:
+      consumes:
+      - application/json
+      description: Cadastra um novo lead comercial
+      parameters:
+      - description: Dados do lead
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateLeadRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.LeadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Cria um lead
+      tags:
+      - leads
+  /leads/{id}:
+    delete:
+      description: Remove um lead pelo ID
+      parameters:
+      - description: ID do lead
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DeleteLeadResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Remove um lead
+      tags:
+      - leads
+    get:
+      description: Retorna um lead pelo ID
+      parameters:
+      - description: ID do lead
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LeadResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Busca lead por ID
+      tags:
+      - leads
+    put:
+      consumes:
+      - application/json
+      description: Atualiza os dados de um lead existente
+      parameters:
+      - description: ID do lead
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Dados atualizados do lead
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateLeadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LeadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Atualiza um lead
+      tags:
+      - leads
+  /leads/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Atualiza apenas o status de um lead existente
+      parameters:
+      - description: ID do lead
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Novo status
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LeadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Atualiza status do lead
+      tags:
+      - leads
+swagger: "2.0"

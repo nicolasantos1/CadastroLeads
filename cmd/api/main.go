@@ -1,12 +1,21 @@
 package main
 
+// @title CadastroLeads API
+// @version 1.0
+// @description API REST para cadastro e gestão de leads.
+// @host localhost:3000
+// @BasePath /
+
 import (
 	"log"
 	"os"
 
+	swaggo "github.com/gofiber/contrib/v3/swaggo"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	recoverer "github.com/gofiber/fiber/v3/middleware/recover"
+
+	_ "github.com/nicolasantos1/CadastroLeads/docs"
 
 	"github.com/nicolasantos1/CadastroLeads/internal/database"
 	"github.com/nicolasantos1/CadastroLeads/internal/handler"
@@ -23,6 +32,16 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
+	app := fiber.New()
+
+	app.Use(logger.New(logger.Config{
+		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
+	}))
+	app.Use(recoverer.New())
+
+	
+	app.Get("/swagger/*", swaggo.HandlerDefault)
+
 	port := getEnv("PORT", "3000")
 	dbPath := getEnv("DB_PATH", "leads.db")
 
@@ -36,27 +55,21 @@ func main() {
 		}
 	}()
 
-	app := fiber.New()
-
-	app.Use(recoverer.New())
-	app.Use(logger.New(logger.Config{
-		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
-	}))
 
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo)
 	leadHandler := handler.NewLeadHandler(leadService)
 
+	// Health godoc
+	// @Summary Verifica saúde da API
+	// @Description Retorna status de saúde da API
+	// @Tags health
+	// @Produce json
+	// @Success 200 {object} dto.HealthResponse
+	// @Router /health [get]
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"data": "API rodando com banco",
-		})
-	})
-
-	// rota temporária para testar o recover
-	app.Get("/panic-test", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"error": "SDF",
 		})
 	})
 	

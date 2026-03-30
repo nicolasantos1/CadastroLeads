@@ -58,6 +58,18 @@ type listLeadsQuery struct {
 	Source string `query:"source"`
 }
 
+// CreateLead godoc
+// @Summary Cria um lead
+// @Description Cadastra um novo lead comercial
+// @Tags leads
+// @Accept json
+// @Produce json
+// @Param input body dto.CreateLeadRequest true "Dados do lead"
+// @Success 201 {object} dto.LeadResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads [post]
 func (h *LeadHandler) CreateLead(c fiber.Ctx) error {
 	var req dto.CreateLeadRequest
 	if err := decodeStrictJSON(c, &req); err != nil {
@@ -74,6 +86,19 @@ func (h *LeadHandler) CreateLead(c fiber.Ctx) error {
 	})
 }
 
+// ListLeads godoc
+// @Summary Lista leads
+// @Description Lista leads com paginação e filtros
+// @Tags leads
+// @Produce json
+// @Param page query int false "Página"
+// @Param limit query int false "Limite por página"
+// @Param status query string false "Filtro por status"
+// @Param source query string false "Filtro por source"
+// @Success 200 {object} dto.LeadListResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads [get]
 func (h *LeadHandler) ListLeads(c fiber.Ctx) error {
 	var query listLeadsQuery
 	if err := c.Bind().Query(&query); err != nil {
@@ -90,6 +115,16 @@ func (h *LeadHandler) ListLeads(c fiber.Ctx) error {
 	})
 }
 
+// GetLeadByID godoc
+// @Summary Busca lead por ID
+// @Description Retorna um lead pelo ID
+// @Tags leads
+// @Produce json
+// @Param id path int true "ID do lead"
+// @Success 200 {object} dto.LeadResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads/{id} [get]
 func (h *LeadHandler) GetLeadByID(c fiber.Ctx) error {
 	var params leadIDParam
 	if err := c.Bind().URI(&params); err != nil {
@@ -133,6 +168,19 @@ func jsonErrorMessage(err error) string {
 	return "corpo da requisição inválido"
 }
 
+// UpdateLead godoc
+// @Summary Atualiza um lead
+// @Description Atualiza os dados de um lead existente
+// @Tags leads
+// @Accept json
+// @Produce json
+// @Param id path int true "ID do lead"
+// @Param input body dto.UpdateLeadRequest true "Dados atualizados do lead"
+// @Success 200 {object} dto.LeadResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads/{id} [put]
 func (h *LeadHandler) UpdateLead(c fiber.Ctx) error {
 	var params leadIDParam
 	if err := c.Bind().URI(&params); err != nil {
@@ -154,6 +202,19 @@ func (h *LeadHandler) UpdateLead(c fiber.Ctx) error {
 	})
 }
 
+// UpdateLeadStatus godoc
+// @Summary Atualiza status do lead
+// @Description Atualiza apenas o status de um lead existente
+// @Tags leads
+// @Accept json
+// @Produce json
+// @Param id path int true "ID do lead"
+// @Param input body dto.UpdateStatusRequest true "Novo status"
+// @Success 200 {object} dto.LeadResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads/{id}/status [patch]
 func (h *LeadHandler) UpdateLeadStatus(c fiber.Ctx) error {
 	var params leadIDParam
 	if err := c.Bind().URI(&params); err != nil {
@@ -175,6 +236,16 @@ func (h *LeadHandler) UpdateLeadStatus(c fiber.Ctx) error {
 	})
 }
 
+// DeleteLead godoc
+// @Summary Remove um lead
+// @Description Remove um lead pelo ID
+// @Tags leads
+// @Produce json
+// @Param id path int true "ID do lead"
+// @Success 200 {object} dto.DeleteLeadResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /leads/{id} [delete]
 func (h *LeadHandler) DeleteLead(c fiber.Ctx) error {
 	var params leadIDParam
 	if err := c.Bind().URI(&params); err != nil {

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit:*)",
+      "Bash(curl -s http://localhost:3000/leads/1)",
+      "Bash(curl -s -X POST http://localhost:3000/leads -H \"Content-Type: application/json\" -d '{\"\"name\"\":\"\"Nicolas\"\",\"\"email\"\":\"\"nicolas@email.com\"\",\"\"phone\"\":\"\"11999998888\"\",\"\"source\"\":\"\"landing_page\"\"}')",
+      "Bash(curl -s -X PUT http://localhost:3000/leads/1 -H \"Content-Type: application/json\" -d '{\"\"name\"\":\"\"Nicolas Santos\"\",\"\"phone\"\":\"\"11988887777\"\",\"\"source\"\":\"\"google_ads\"\",\"\"status\"\":\"\"contacted\"\"}')",
+      "Bash(curl -s -X PATCH http://localhost:3000/leads/1/status -H \"Content-Type: application/json\" -d '{\"\"status\"\":\"\"qualified\"\"}')",
+      "Bash(curl -s \"http://localhost:3000/leads?page=1&limit=10&status=qualified\")",
+      "Bash(git add:*)"
+    ]
+  }
+}
