@@ -53,20 +53,45 @@ func runMigrations(db *sql.DB) error {
 		return fmt.Errorf("erro ao aplicar migration: %w", err)
 	}
 
+	if err := ensureDeletedAtColumn(db); err != nil {
+		return fmt.Errorf("erro ao garantir coluna deleted_at: %w", err)
+	}
+
 	return nil
 }
 
-//teste
-
-func DeleteTable(db *sql.DB) error {
-	downSQL, err := migrationFiles.ReadFile("migrations/000001_create_leads.down.sql")
+func ensureDeletedAtColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(leads)`)
 	if err != nil {
-		return err
+		return fmt.Errorf("erro ao inspecionar tabela leads: %w", err)
+	}
+	defer rows.Close()
+
+	var (
+		cid        int
+		name       string
+		columnType string
+		notNull    int
+		defaultVal any
+		pk         int
+	)
+
+	for rows.Next() {
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &pk); err != nil {
+			return fmt.Errorf("erro ao ler schema da tabela leads: %w", err)
+		}
+
+		if name == "deleted_at" {
+			return nil
+		}
 	}
 
-	_, err = db.Exec(string(downSQL))
-	if err != nil {
-		return err
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("erro ao iterar schema da tabela leads: %w", err)
+	}
+
+	if _, err := db.Exec(`ALTER TABLE leads ADD COLUMN deleted_at DATETIME NULL`); err != nil {
+		return fmt.Errorf("erro ao adicionar coluna deleted_at: %w", err)
 	}
 
 	return nil
