@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
+	
+	authmiddleware "github.com/nicolasantos1/CadastroLeads/internal/handler/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/nicolasantos1/CadastroLeads/internal/dto"
 	"github.com/nicolasantos1/CadastroLeads/internal/repository"
@@ -23,12 +24,12 @@ func NewLeadHandler(service service.LeadService) *LeadHandler {
 }
 
 func (h *LeadHandler) RegisterRoutes(app *fiber.App) {
-	app.Post("/leads", h.CreateLead)
-	app.Get("/leads", h.ListLeads)
-	app.Get("/leads/:id", h.GetLeadByID)
-	app.Put("/leads/:id", h.UpdateLead)
-	app.Patch("/leads/:id/status", h.UpdateLeadStatus)
-	app.Delete("/leads/:id", h.DeleteLead)
+	app.Post("/leads", authmiddleware.RequireAuth(), h.CreateLead)
+	app.Get("/leads", authmiddleware.RequireAuth(), h.ListLeads)
+	app.Get("/leads/:id", authmiddleware.RequireAuth(), h.GetLeadByID)
+	app.Put("/leads/:id", authmiddleware.RequireAuth(), h.UpdateLead)
+	app.Patch("/leads/:id/status", authmiddleware.RequireAuth(), h.UpdateLeadStatus)
+	app.Delete("/leads/:id", authmiddleware.RequireAuth(), h.DeleteLead)
 }
 
 type successResponse struct {

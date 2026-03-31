@@ -55,3 +55,19 @@ func runMigrations(db *sql.DB) error {
 
 	return nil
 }
+
+//teste
+
+func DeleteTable(db *sql.DB) error {
+	downSQL, err := migrationFiles.ReadFile("migrations/000001_create_leads.down.sql")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(string(downSQL))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
