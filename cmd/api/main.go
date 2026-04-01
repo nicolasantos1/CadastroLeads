@@ -32,6 +32,7 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
+	
 	app := fiber.New()
 
 	app.Use(logger.New(logger.Config{
@@ -49,12 +50,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Printf("erro ao fechar banco: %v", err)
 		}
 	}()
-
+	
+	if err := database.SeedFromFiles(db, true); err != nil {
+    log.Fatalf("erro ao rodar seeds: %v", err)
+	}
 
 	leadRepo := repository.NewLeadRepository(db)
 	leadService := service.NewLeadService(leadRepo)
@@ -77,3 +82,4 @@ func main() {
 
 	log.Fatal(app.Listen(":" + port))
 }
+

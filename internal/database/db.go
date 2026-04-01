@@ -65,10 +65,14 @@ func ensureDeletedAtColumn(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("erro ao inspecionar tabela leads: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("erro ao fechar rows: %v\n", closeErr)
+		}
+	}()
 
 	var (
-		cid        int
+		cid        int 	
 		name       string
 		columnType string
 		notNull    int

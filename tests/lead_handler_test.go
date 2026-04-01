@@ -30,10 +30,12 @@ CREATE TABLE IF NOT EXISTS leads (
 	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 `
-
+const testToken = "dev-token-123"
 func setupTestApp(t *testing.T) *fiber.App {
+	
 	t.Helper()
-
+	t.Setenv("API_TOKEN", testToken)	
+	
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	db, err := sql.Open("sqlite", dbPath)
@@ -71,6 +73,7 @@ func performRequest(t *testing.T, app *fiber.App, method, url string, body []byt
 
 	req := httptest.NewRequest(method, url, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+testToken)
 
 	resp, err := app.Test(req)
 	if err != nil {
