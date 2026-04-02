@@ -100,6 +100,8 @@ Exemplo no arquivo `.env.example`:
 PORT=3000
 DB_PATH=leads.db
 API_TOKEN=dev-token-123
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
 ### Descrição
@@ -107,6 +109,8 @@ API_TOKEN=dev-token-123
 - `PORT`: porta da aplicação
 - `DB_PATH`: caminho do arquivo SQLite
 - `API_TOKEN`: token fixo usado na autenticação Bearer
+- `RATE_LIMIT_MAX`: quantidade máxima de requisições por janela de tempo nas rotas protegidas
+- `RATE_LIMIT_WINDOW_SECONDS`: duração da janela do rate limit em segundos
 
 ## Como rodar o projeto localmente
 
@@ -174,6 +178,16 @@ Exemplo usando o token padrão:
 ```text
 Authorization: Bearer dev-token-123
 ```
+
+## Rate limit
+
+As rotas protegidas de `/leads` possuem limitação de requisições por IP.
+
+- padrão: `100` requisições
+- janela: `60` segundos
+- resposta ao exceder: `429 Too Many Requests`
+
+Os headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` e `Retry-After` são retornados para facilitar inspeção e observabilidade básica.
 
 ## Swagger
 
@@ -437,6 +451,7 @@ Invoke-RestMethod -Method DELETE -Uri "http://localhost:3000/leads/1" `
 - `401 Unauthorized`
 - `404 Not Found`
 - `409 Conflict`
+- `429 Too Many Requests`
 - `500 Internal Server Error`
 
 ## Autor

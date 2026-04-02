@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"strings"
 	
 	"github.com/gofiber/fiber/v3"
 	_ "modernc.org/sqlite"
@@ -465,4 +466,38 @@ func TestCreateLeadWithSameEmailAfterSoftDelete(t *testing.T) {
 	if createAgainResp.StatusCode != http.StatusCreated {
 		t.Fatalf("recriação com mesmo email após soft delete falhou com status %d", createAgainResp.StatusCode)
 	}
+}
+
+func TestRateLimitExceeded(t *testing.T) {
+    t.Setenv("RATE_LIMIT_MAX", "2")
+    t.Setenv("RATE_LIMIT_WINDOW_SECONDS", "60")
+
+    app := setupTestApp(t)
+
+    for i := 1; i <= 2; i++ {
+        resp := performRequest(t, app, http.MethodGet, "/leads", nil)
+        if resp.StatusCode != http.StatusOK {
+            t.Fatalf("requisição %d deveria passar, mas retornou %d", i, resp.StatusCode)
+        }
+    }
+
+    resp := performRequest(t, app, http.MethodGet, "/leads", nil)
+    if resp.StatusCode != http.StatusTooManyRequests {
+        t.Fatalf("status esperado %d, recebido %d", http.StatusTooManyRequests, resp.StatusCode)
+    }
+
+    payload := decodeJSONResponse(t, resp)
+    errorField, ok := payload["error"].(map[string]any)
+    if !ok {
+        t.Fatalf("campo error ausente ou inválido")
+    }
+
+    message, ok := errorField["message"].(string)
+    if !ok {
+        t.Fatalf("mensagem de erro ausente ou inválida")
+    }
+
+    if !strings.Contains(message, "limite de requisições excedido") {
+        t.Fatalf("mensagem inesperada: %v", message)
+    }
 }

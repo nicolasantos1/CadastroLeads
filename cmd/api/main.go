@@ -57,7 +57,8 @@ func main() {
 		}
 	}()
 	
-	if err := database.SeedFromFiles(db, true); err != nil {
+	RUN_SEED:=true //false = Não executa o seed  | true = executa o seed
+	if err := database.SeedFromFiles(db, RUN_SEED); err != nil {
    		log.Fatalf("erro ao rodar seeds: %v", err)
 	}
 

@@ -24,12 +24,15 @@ func NewLeadHandler(service service.LeadService) *LeadHandler {
 }
 
 func (h *LeadHandler) RegisterRoutes(app *fiber.App) {
-	app.Post("/leads", authmiddleware.RequireAuth(), h.CreateLead)
-	app.Get("/leads", authmiddleware.RequireAuth(), h.ListLeads)
-	app.Get("/leads/:id", authmiddleware.RequireAuth(), h.GetLeadByID)
-	app.Put("/leads/:id", authmiddleware.RequireAuth(), h.UpdateLead)
-	app.Patch("/leads/:id/status", authmiddleware.RequireAuth(), h.UpdateLeadStatus)
-	app.Delete("/leads/:id", authmiddleware.RequireAuth(), h.DeleteLead)
+	rateLimit := authmiddleware.RequireRateLimit()
+	auth := authmiddleware.RequireAuth()
+	
+	app.Post("/leads", rateLimit, auth, h.CreateLead)
+	app.Get("/leads", rateLimit, auth, h.ListLeads)
+	app.Get("/leads/:id", rateLimit, auth, h.GetLeadByID)
+	app.Put("/leads/:id", rateLimit, auth, h.UpdateLead)
+	app.Patch("/leads/:id/status", rateLimit, auth, h.UpdateLeadStatus)
+	app.Delete("/leads/:id", rateLimit, auth, h.DeleteLead)
 }
 
 type successResponse struct {
