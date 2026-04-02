@@ -22,14 +22,20 @@ const testSchema = `
 CREATE TABLE IF NOT EXISTS leads (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL,
-	email TEXT NOT NULL UNIQUE,
+	email TEXT NOT NULL,
 	phone TEXT,
 	source TEXT NOT NULL,
 	status TEXT NOT NULL DEFAULT 'new',
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	deleted_at DATETIME NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_email_active
+ON leads(email)
+WHERE deleted_at IS NULL;
 `
+
 const testToken = "dev-token-123"
 func setupTestApp(t *testing.T) *fiber.App {
 	
@@ -432,5 +438,31 @@ func TestListLeadsPagination(t *testing.T) {
 
 	if len(items) != 2 {
 		t.Fatalf("esperado 2 itens na página, recebido %d", len(items))
+	}
+}
+
+func TestCreateLeadWithSameEmailAfterSoftDelete(t *testing.T) {
+	app := setupTestApp(t)
+
+	createBody := []byte(`{
+		"name":"Nicolas",
+		"email":"nicolas@email.com",
+		"phone":"11999999999",
+		"source":"landing_page"
+	}`)
+
+	createResp := performRequest(t, app, http.MethodPost, "/leads", createBody)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("criação falhou com status %d", createResp.StatusCode)
+	}
+
+	deleteResp := performRequest(t, app, http.MethodDelete, "/leads/1", nil)
+	if deleteResp.StatusCode != http.StatusOK {
+		t.Fatalf("delete falhou com status %d", deleteResp.StatusCode)
+	}
+
+	createAgainResp := performRequest(t, app, http.MethodPost, "/leads", createBody)
+	if createAgainResp.StatusCode != http.StatusCreated {
+		t.Fatalf("recriação com mesmo email após soft delete falhou com status %d", createAgainResp.StatusCode)
 	}
 }

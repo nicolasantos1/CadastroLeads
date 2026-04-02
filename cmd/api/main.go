@@ -58,7 +58,7 @@ func main() {
 	}()
 	
 	if err := database.SeedFromFiles(db, true); err != nil {
-    log.Fatalf("erro ao rodar seeds: %v", err)
+   		log.Fatalf("erro ao rodar seeds: %v", err)
 	}
 
 	leadRepo := repository.NewLeadRepository(db)

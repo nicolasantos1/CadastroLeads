@@ -79,6 +79,7 @@ func (r *SQLiteLeadRepository) List(page, limit int, status, source string) ([]m
 	query := `
 		SELECT id, name, email, phone, source, status, created_at, updated_at
 		FROM leads
+		WHERE deleted_at IS NULL
 	`
 	var conditions []string
 	var args []any
@@ -87,14 +88,14 @@ func (r *SQLiteLeadRepository) List(page, limit int, status, source string) ([]m
 		conditions = append(conditions, "status = ?")
 		args = append(args, status)
 	}
-
+	
 	if source != "" {
 		conditions = append(conditions, "source = ?")
 		args = append(args, source)
 	}
-
+	
 	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
+		query += " AND " + strings.Join(conditions, " AND ")
 	}
 
 	query += " ORDER BY id DESC LIMIT ? OFFSET ?"
@@ -131,9 +132,9 @@ func (r *SQLiteLeadRepository) GetByID(id int) (*model.Lead, error) {
 	row := r.db.QueryRow(`
 		SELECT id, name, email, phone, source, status, created_at, updated_at
 		FROM leads
-		WHERE id = ?
+		WHERE id = ? AND deleted_at IS NULL
 	`, id)
-
+	
 	lead, err := scanLead(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -149,7 +150,7 @@ func (r *SQLiteLeadRepository) GetByEmail(email string) (*model.Lead, error) {
 	row := r.db.QueryRow(`
 		SELECT id, name, email, phone, source, status, created_at, updated_at
 		FROM leads
-		WHERE email = ?
+		WHERE email = ? AND deleted_at IS NULL
 	`, email)
 
 	lead, err := scanLead(row)
@@ -169,7 +170,7 @@ func (r *SQLiteLeadRepository) Update(lead *model.Lead) error {
 	result, err := r.db.Exec(`
 		UPDATE leads
 		SET name = ?, phone = ?, source = ?, status = ?, updated_at = ?
-		WHERE id = ?
+		WHERE id = ? AND deleted_at IS NULL
 	`,
 		lead.Name,
 		lead.Phone,
@@ -178,6 +179,7 @@ func (r *SQLiteLeadRepository) Update(lead *model.Lead) error {
 		now,
 		lead.ID,
 	)
+	
 	if err != nil {
 		return fmt.Errorf("erro ao atualizar lead: %w", err)
 	}
@@ -199,7 +201,7 @@ func (r *SQLiteLeadRepository) UpdateStatus(id int, status string) error {
 	result, err := r.db.Exec(`
 		UPDATE leads
 		SET status = ?, updated_at = ?
-		WHERE id = ?
+		WHERE id = ? AND deleted_at IS NULL
 	`, status, time.Now().UTC(), id)
 	if err != nil {
 		return fmt.Errorf("erro ao atualizar status do lead: %w", err)
@@ -218,7 +220,13 @@ func (r *SQLiteLeadRepository) UpdateStatus(id int, status string) error {
 }
 
 func (r *SQLiteLeadRepository) Delete(id int) error {
-	result, err := r.db.Exec(`DELETE FROM leads WHERE id = ?`, id)
+	now := time.Now().UTC()
+
+	result, err := r.db.Exec(`
+		UPDATE leads
+		SET deleted_at = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, now, now, id)
 	if err != nil {
 		return fmt.Errorf("erro ao deletar lead: %w", err)
 	}
