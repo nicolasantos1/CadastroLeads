@@ -189,6 +189,20 @@ As rotas protegidas de `/leads` possuem limitação de requisições por IP.
 
 Os headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` e `Retry-After` são retornados para facilitar inspeção e observabilidade básica.
 
+## Idempotência no cadastro
+
+A rota `POST /leads` aceita opcionalmente o header `Idempotency-Key`.
+
+Exemplo:
+
+```http
+POST /leads
+Authorization: Bearer dev-token-123
+Idempotency-Key: lead-create-001
+Content-Type: application/json
+```
+
+
 ## Swagger
 
 A documentação Swagger fica disponível em:

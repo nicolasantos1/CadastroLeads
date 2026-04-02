@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sort"
 
 	_ "modernc.org/sqlite"
 )
@@ -44,13 +45,32 @@ func ConnectSQLite(dbPath string) (*sql.DB, error) {
 }
 
 func runMigrations(db *sql.DB) error {
-	upSQL, err := migrationFiles.ReadFile("migrations/000001_create_leads.up.sql")
+	entries, err := migrationFiles.ReadDir("migrations")
 	if err != nil {
-		return fmt.Errorf("erro ao ler migration: %w", err)
+		return fmt.Errorf("erro ao listar migrations: %w", err)
 	}
 
-	if _, err := db.Exec(string(upSQL)); err != nil {
-		return fmt.Errorf("erro ao aplicar migration: %w", err)
+	var migrationNames []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".up.sql") {
+			migrationNames = append(migrationNames, entry.Name())
+		}
+	}
+
+	sort.Strings(migrationNames)
+
+	for _, name := range migrationNames {
+		upSQL, err := migrationFiles.ReadFile("migrations/" + name)
+		if err != nil {
+			return fmt.Errorf("erro ao ler migration %s: %w", name, err)
+		}
+
+		if _, err := db.Exec(string(upSQL)); err != nil {
+			return fmt.Errorf("erro ao aplicar migration %s: %w", name, err)
+		}
 	}
 
 	if err := ensureDeletedAtColumn(db); err != nil {

@@ -1,4 +1,4 @@
-package handler
+	package handler
 
 import (
 	"bytes"
@@ -16,18 +16,23 @@ import (
 )
 
 type LeadHandler struct {
-	service service.LeadService
+	service         service.LeadService
+	idempotencyRepo repository.IdempotencyRepository
 }
 
-func NewLeadHandler(service service.LeadService) *LeadHandler {
-	return &LeadHandler{service: service}
+func NewLeadHandler(service service.LeadService, idempotencyRepo repository.IdempotencyRepository) *LeadHandler {
+	return &LeadHandler{
+		service:         service,		
+		idempotencyRepo: idempotencyRepo,
+	}
 }
 
 func (h *LeadHandler) RegisterRoutes(app *fiber.App) {
 	rateLimit := authmiddleware.RequireRateLimit()
 	auth := authmiddleware.RequireAuth()
-	
-	app.Post("/leads", rateLimit, auth, h.CreateLead)
+	idempotency := authmiddleware.RequireIdempotency(h.idempotencyRepo)
+
+	app.Post("/leads", rateLimit, auth, idempotency, h.CreateLead)
 	app.Get("/leads", rateLimit, auth, h.ListLeads)
 	app.Get("/leads/:id", rateLimit, auth, h.GetLeadByID)
 	app.Put("/leads/:id", rateLimit, auth, h.UpdateLead)
@@ -74,6 +79,7 @@ type listLeadsQuery struct {
 // @Failure 409 {object} dto.ErrorResponse
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /leads [post]
+// @Param Idempotency-Key header string false "Chave idempotente para evitar criação duplicada"
 func (h *LeadHandler) CreateLead(c fiber.Ctx) error {
 	var req dto.CreateLeadRequest
 	if err := decodeStrictJSON(c, &req); err != nil {

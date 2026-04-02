@@ -35,6 +35,20 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_email_active
 ON leads(email)
 WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	idempotency_key TEXT NOT NULL,
+	method TEXT NOT NULL,
+	path TEXT NOT NULL,
+	request_hash TEXT NOT NULL,
+	status TEXT NOT NULL,
+	response_status_code INTEGER,
+	response_body TEXT,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(idempotency_key, method, path)
+);
 `
 
 const testToken = "dev-token-123"
@@ -61,8 +75,9 @@ func setupTestApp(t *testing.T) *fiber.App {
 	app := fiber.New()
 
 	leadRepo := repository.NewLeadRepository(db)
+	idempotencyRepo := repository.NewIdempotencyRepository(db)
 	leadService := service.NewLeadService(leadRepo)
-	leadHandler := handler.NewLeadHandler(leadService)
+	leadHandler := handler.NewLeadHandler(leadService, idempotencyRepo)
 
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -75,12 +90,16 @@ func setupTestApp(t *testing.T) *fiber.App {
 	return app
 }
 
-func performRequest(t *testing.T, app *fiber.App, method, url string, body []byte) *http.Response {
+func performRequestWithHeaders(t *testing.T, app *fiber.App, method, url string, body []byte, headers map[string]string) *http.Response {
 	t.Helper()
 
 	req := httptest.NewRequest(method, url, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+testToken)
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -88,6 +107,11 @@ func performRequest(t *testing.T, app *fiber.App, method, url string, body []byt
 	}
 
 	return resp
+}
+
+func performRequest(t *testing.T, app *fiber.App, method, url string, body []byte) *http.Response {
+	t.Helper()
+	return performRequestWithHeaders(t, app, method, url, body, nil)
 }
 
 func decodeJSONResponse(t *testing.T, resp *http.Response) map[string]any {
@@ -500,4 +524,105 @@ func TestRateLimitExceeded(t *testing.T) {
     if !strings.Contains(message, "limite de requisições excedido") {
         t.Fatalf("mensagem inesperada: %v", message)
     }
+}
+func TestCreateLeadIdempotencyReplay(t *testing.T) {
+	app := setupTestApp(t)
+
+	body := []byte(`{
+		"name":"Nicolas",
+		"email":"nicolas@email.com",
+		"phone":"11999999999",
+		"source":"landing_page"
+	}`)
+
+	headers := map[string]string{
+		"Idempotency-Key": "idem-create-001",
+	}
+
+	firstResp := performRequestWithHeaders(t, app, http.MethodPost, "/leads", body, headers)
+	if firstResp.StatusCode != http.StatusCreated {
+		t.Fatalf("primeira criação falhou com status %d", firstResp.StatusCode)
+	}
+
+	firstPayload := decodeJSONResponse(t, firstResp)
+	firstData, ok := firstPayload["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("campo data da primeira resposta ausente ou inválido")
+	}
+
+	secondResp := performRequestWithHeaders(t, app, http.MethodPost, "/leads", body, headers)
+	if secondResp.StatusCode != http.StatusCreated {
+		t.Fatalf("segunda criação idempotente deveria retornar %d, mas retornou %d", http.StatusCreated, secondResp.StatusCode)
+	}
+
+	if secondResp.Header.Get("X-Idempotency-Replayed") != "true" {
+		t.Fatalf("esperado header X-Idempotency-Replayed=true")
+	}
+
+	secondPayload := decodeJSONResponse(t, secondResp)
+	secondData, ok := secondPayload["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("campo data da segunda resposta ausente ou inválido")
+	}
+
+	if firstData["id"] != secondData["id"] {
+		t.Fatalf("id deveria ser o mesmo no replay idempotente. primeiro=%v segundo=%v", firstData["id"], secondData["id"])
+	}
+
+	listResp := performRequest(t, app, http.MethodGet, "/leads", nil)
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("listagem falhou com status %d", listResp.StatusCode)
+	}
+
+	listPayload := decodeJSONResponse(t, listResp)
+	items, ok := listPayload["data"].([]any)
+	if !ok {
+		t.Fatalf("campo data da listagem não é uma lista válida")
+	}
+
+	if len(items) != 1 {
+		t.Fatalf("deveria existir apenas 1 lead após replay idempotente, mas existem %d", len(items))
+	}
+}
+
+func TestCreateLeadIdempotencyKeyWithDifferentPayload(t *testing.T) {
+	app := setupTestApp(t)
+
+	firstBody := []byte(`{
+		"name":"Nicolas",
+		"email":"nicolas@email.com",
+		"phone":"11999999999",
+		"source":"landing_page"
+	}`)
+
+	secondBody := []byte(`{
+		"name":"Maria",
+		"email":"maria@email.com",
+		"phone":"11888888888",
+		"source":"google_ads"
+	}`)
+
+	headers := map[string]string{
+		"Idempotency-Key": "idem-create-002",
+	}
+
+	firstResp := performRequestWithHeaders(t, app, http.MethodPost, "/leads", firstBody, headers)
+	if firstResp.StatusCode != http.StatusCreated {
+		t.Fatalf("primeira criação falhou com status %d", firstResp.StatusCode)
+	}
+
+	secondResp := performRequestWithHeaders(t, app, http.MethodPost, "/leads", secondBody, headers)
+	if secondResp.StatusCode != http.StatusConflict {
+		t.Fatalf("status esperado %d, recebido %d", http.StatusConflict, secondResp.StatusCode)
+	}
+
+	payload := decodeJSONResponse(t, secondResp)
+	errorField, ok := payload["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("campo error ausente ou inválido")
+	}
+
+	if errorField["message"] != "Idempotency-Key já foi usada com outro payload" {
+		t.Fatalf("mensagem inesperada: %v", errorField["message"])
+	}
 }

@@ -63,8 +63,10 @@ func main() {
 	}
 
 	leadRepo := repository.NewLeadRepository(db)
+	idempotencyRepo := repository.NewIdempotencyRepository(db)
+	
 	leadService := service.NewLeadService(leadRepo)
-	leadHandler := handler.NewLeadHandler(leadService)
+	leadHandler := handler.NewLeadHandler(leadService, idempotencyRepo)
 
 	// Health godoc
 	// @Summary Verifica saúde da API
